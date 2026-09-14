@@ -1,8 +1,15 @@
-import type { DashboardData, NewsItem, WeatherData } from "./types.js";
+import "dotenv/config";
+import type { NewsItem } from "./types/news.js";
+import type { DashboardData, WeatherData } from "./types/weather.js";
 
-const WEATHER_URL =
-  "https://api.open-meteo.com/v1/forecast?latitude=-26.2041&longitude=28.0473&current=temperature_2m,weather_code&timezone=auto";
-const NEWS_URL = "https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=3";
+const WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}";
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
+
+if (!NEWS_API_KEY) {
+  throw new Error("Missing NEWS_API_KEY in .env");
+}
+
+const NEWS_URL = `https://newsapi.org/v2/top-headlines?country=za&pageSize=3&apiKey=${NEWS_API_KEY}`;
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -15,6 +22,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 function getWeatherCondition(code?: number): string {
+  
   switch (code) {
     case 0:
       return "Clear";
@@ -45,10 +53,10 @@ export function fetchWeather(): Promise<WeatherData> {
 }
 
 export function fetchNews(): Promise<NewsItem[]> {
-  return fetchJson<{ hits?: Array<{ title?: string; url?: string; author?: string }> }>(NEWS_URL).then(
+  return fetchJson<{ articles?: Array<{ title?: string; url?: string; source?: { name?: string } }> }>(NEWS_URL).then(
     (data) =>
-      (data.hits ?? []).slice(0, 3).map((item) => ({
-        source: item.author ?? "Hacker News",
+      (data.articles ?? []).slice(0, 3).map((item) => ({
+        source: item.source?.name ?? "News API",
         title: item.title ?? "Untitled story",
         ...(item.url ? { url: item.url } : {}),
       })),

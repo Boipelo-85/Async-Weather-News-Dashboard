@@ -1,9 +1,16 @@
+import "dotenv/config";
 import https from "node:https";
-import type { DashboardData, NewsItem, WeatherData } from "./types.js";
+import type { NewsItem } from "./types/news.js";
+import type { DashboardData, WeatherData } from "./types/weather.js";
 
-const WEATHER_URL =
-  "https://api.open-meteo.com/v1/forecast?latitude=-26.2041&longitude=28.0473&current=temperature_2m,weather_code&timezone=auto";
-const NEWS_URL = "https://hn.algolia.com/api/v1/search_by_date?tags=story&hitsPerPage=3";
+const WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}";
+const NEWS_API_KEY = process.env.NEWS_API_KEY;
+
+if (!NEWS_API_KEY) {
+  throw new Error("Missing NEWS_API_KEY in .env");
+}
+
+const NEWS_URL = `https://newsapi.org/v2/top-headlines?country=za&pageSize=3&apiKey=${NEWS_API_KEY}`;
 
 function requestJson<T>(url: string, callback: (error: Error | null, data?: T) => void): void {
   https
@@ -73,7 +80,7 @@ export function fetchWeatherWithCallback(
 export function fetchNewsWithCallback(
   callback: (error: Error | null, news?: NewsItem[]) => void,
 ): void {
-  requestJson<{ hits?: Array<{ title?: string; url?: string; author?: string }> }>(
+  requestJson<{ articles?: Array<{ title?: string; url?: string; source?: { name?: string } }> }>(
     NEWS_URL,
     (error, data) => {
       if (error || !data) {
@@ -81,10 +88,10 @@ export function fetchNewsWithCallback(
         return;
       }
 
-      const news = (data.hits ?? [])
+      const news = (data.articles ?? [])
         .slice(0, 3)
         .map((item) => ({
-          source: item.author ?? "Hacker News",
+          source: item.source?.name ?? "News API",
           title: item.title ?? "Untitled story",
           ...(item.url ? { url: item.url } : {}),
         }));
