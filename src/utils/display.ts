@@ -6,7 +6,15 @@ export function displayDashboard(weather: WeatherData, news: NewsItem[]): void {
   console.log("Top stories:");
 
   news.forEach((item, index) => {
+
     const details = item.url ? `${item.title} (${item.url})` : item.title;
     console.log(`${index + 1}. ${item.source}: ${details}`);
   });
+  
 }
+export function displayError(context: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : JSON.stringify(error);
+
+   console.error(`Error in ${context}: ${message}`);
+}
+

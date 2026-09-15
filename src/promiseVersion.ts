@@ -2,9 +2,12 @@ import "dotenv/config";
 import type { NewsItem } from "./types/news.js";
 import type { DashboardData, WeatherData } from "./types/weather.js";
 
-const WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}";
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
 
+if (!WEATHER_API_KEY) {
+  throw new Error("Missing WEATHER_API_KEY in .env");
+}
 if (!NEWS_API_KEY) {
   throw new Error("Missing NEWS_API_KEY in .env");
 }
@@ -21,37 +24,20 @@ async function fetchJson<T>(url: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-function getWeatherCondition(code?: number): string {
-  
-  switch (code) {
-    case 0:
-      return "Clear";
-    case 1:
-    case 2:
-    case 3:
-      return "Partly cloudy";
-    case 45:
-    case 48:
-      return "Foggy";
-    case 51:
-    case 53:
-    case 55:
-      return "Rainy";
-    default:
-      return "Mild";
-  }
-}
+// Weather fetcher with city support
+export function fetchWeather(city: string): Promise<WeatherData> {
+  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${WEATHER_API_KEY}&units=metric`;
 
-export function fetchWeather(): Promise<WeatherData> {
-  return fetchJson<{ current?: { temperature_2m?: number; weather_code?: number } }>(WEATHER_URL).then(
+  return fetchJson<{ main?: { temp?: number }; weather?: Array<{ description?: string }> }>(WEATHER_URL).then(
     (data) => ({
-      city: "Johannesburg",
-      temperature: data.current?.temperature_2m ?? 0,
-      condition: getWeatherCondition(data.current?.weather_code),
+      city,
+      temperature: data.main?.temp ?? 0,
+      condition: data.weather?.[0]?.description ?? "Unknown",
     }),
   );
 }
 
+// News fetcher
 export function fetchNews(): Promise<NewsItem[]> {
   return fetchJson<{ articles?: Array<{ title?: string; url?: string; source?: { name?: string } }> }>(NEWS_URL).then(
     (data) =>
@@ -63,25 +49,33 @@ export function fetchNews(): Promise<NewsItem[]> {
   );
 }
 
-export function fetchDashboardWithPromiseAll(): Promise<DashboardData> {
-  return Promise.all([fetchWeather(), fetchNews()]).then(([weather, news]) => ({
+// Dashboard with Promise.all
+export function fetchDashboardWithPromiseAll(city: string): Promise<DashboardData> {
+  return Promise.all([fetchWeather(city), fetchNews()]).then(([weather, news]) => ({
     weather,
     news,
   }));
 }
 
-export function fetchDashboardWithChaining(): Promise<DashboardData> {
-  return fetchWeather()
-    .then((weather) => fetchNews().then((news) => ({ weather, news })))
+// Dashboard with chaining
+export function fetchDashboardWithChaining(city: string): Promise<DashboardData> {
+  return fetchWeather(city)
+    .then((weather) =>
+      fetchNews().then((news) => ({
+        weather,
+        news,
+      })),
+    )
     .catch((error) => {
       console.error("Failed to fetch chained dashboard data:", error);
       throw error;
     });
 }
 
-export function fetchFastestRequest(): Promise<string> {
+// Fastest request demo
+export function fetchFastestRequest(city: string): Promise<string> {
   return Promise.race([
-    fetchWeather().then(() => "Weather finished first"),
+    fetchWeather(city).then(() => "Weather finished first"),
     fetchNews().then(() => "News finished first"),
   ]);
 }

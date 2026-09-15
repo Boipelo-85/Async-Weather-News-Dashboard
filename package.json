@@ -3,9 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+ "scripts": {
+  "callback": "tsx src/callbackVersion.ts",
+  "promise": "tsx src/promiseVersion.ts",
+  "async": "tsx src/asyncAwaitVersion.ts",
+  "dev": "nodemon src/asyncAwaitVersion.ts"
+},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Boipelo-85/Async-Weather-News-Dashboard.git"

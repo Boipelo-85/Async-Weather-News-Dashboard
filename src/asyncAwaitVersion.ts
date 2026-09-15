@@ -1,6 +1,7 @@
 import "dotenv/config";
 import type { NewsItem } from "./types/news.js";
 import type { WeatherData } from "./types/weather.js";
+import { displayError } from "./utils/display.js";
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_API_KEY = process.env.NEWS_API_KEY;
@@ -57,7 +58,7 @@ export async function fetchDashboardData(): Promise<{ weather: WeatherData; news
 
     return { weather, news };
   } catch (error) {
-    console.error("Failed to fetch dashboard data:", error);
+    displayError("Async/Await Dashboard", error);
     throw error;
   }
 }
