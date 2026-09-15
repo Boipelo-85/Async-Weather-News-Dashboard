@@ -67,7 +67,7 @@ export function fetchWeatherWithCallback(
       }
 
       const weather: WeatherData = {
-        city: "Johannesburg",
+        city: "Polokwane",
         temperature: data.current?.temperature_2m ?? 0,
         condition: getWeatherCondition(data.current?.weather_code),
       };

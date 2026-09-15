@@ -15,24 +15,36 @@ const NEWS_URL = `https://newsapi.org/v2/top-headlines?country=za&pageSize=3&api
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-async function getWeather(): Promise<WeatherData> {
+async function getWeather(city: string): Promise<WeatherData> {
   await delay(700);
 
   if (!WEATHER_API_KEY) {
     throw new Error("Missing WEATHER_API_KEY in .env");
   }
 
+  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
+    city,
+  )}&appid=${WEATHER_API_KEY}&units=metric`;
+
+  const response = await fetch(WEATHER_URL);
+
+  if (!response.ok) {
+    throw new Error(`Weather API request failed with status ${response.status}`);
+  }
+
+  const data = (await response.json()) as {
+    main?: { temp?: number };
+    weather?: Array<{ description?: string }>;
+  };
+
   return {
-    city: "Johannesburg",
-    temperature: 22,
-    condition: "Sunny",
+    city,
+    temperature: data.main?.temp ?? 0,
+    condition: data.weather?.[0]?.description ?? "Unknown",
   };
 }
 
 async function getNews(): Promise<NewsItem[]> {
-  await delay(400);
-
   const response = await fetch(NEWS_URL);
 
   if (!response.ok) {
@@ -50,11 +62,11 @@ async function getNews(): Promise<NewsItem[]> {
   }));
 }
 
-export async function fetchDashboardData(): Promise<{ weather: WeatherData; news: NewsItem[] }> {
+export async function fetchDashboardData(city: string): Promise<{ weather: WeatherData; news: NewsItem[] }> {
   try {
     console.log("Fetching weather and news...");
 
-    const [weather, news] = await Promise.all([getWeather(), getNews()]);
+    const [weather, news] = await Promise.all([getWeather(city), getNews()]);
 
     return { weather, news };
   } catch (error) {
