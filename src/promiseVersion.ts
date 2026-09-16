@@ -1,18 +1,11 @@
 import "dotenv/config";
 import promptSync from "prompt-sync";
+import { displayError, WeatherRequestError } from "./utils/displayError.js";
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_URL = "https://dummyjson.com/posts?limit=3";
 const prompt = promptSync();
-const city = prompt("Enter city name: ")?.trim() || "Polokwane";
-
-function createFallbackWeather(city: string) {
-  return {
-    city,
-    temperature: NaN,
-    condition: "Weather unavailable",
-  };
-}
+const city = prompt("Enter city name: ").trim();
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
@@ -24,8 +17,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 
 export function fetchWeather(city: string) {
   if (!WEATHER_API_KEY) {
-    console.warn(`Weather API unavailable for ${city}; using fallback weather.`);
-    return Promise.resolve(createFallbackWeather(city));
+    return Promise.reject(new WeatherRequestError("Missing WEATHER_API_KEY in .env"));
   }
 
   const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`;
@@ -36,10 +28,7 @@ export function fetchWeather(city: string) {
       temperature: data.main?.temp ?? 0,
       condition: data.weather?.[0]?.description ?? "Unknown",
     }))
-    .catch((error) => {
-      console.warn(`Weather API unavailable for ${city}; using fallback weather.`, error);
-      return createFallbackWeather(city);
-    });
+    .catch(() => Promise.reject(new WeatherRequestError(`Weather request failed for "${city}"`)));
 }
 
 export function fetchNews() {
@@ -53,12 +42,8 @@ export function fetchNews() {
 }
 
 export function fetchDashboardWithPromiseAll(city: string) {
-  return Promise.all([fetchWeather(city), fetchNews()])
-    .then(([weather, news]) => ({ weather, news }))
-    .catch((error) => {
-      console.error("Failed to fetch dashboard data:", error);
-      throw error;
-    });
+  return fetchWeather(city).then((weather) => Promise.all([Promise.resolve(weather), fetchNews()]))
+    .then(([weather, news]) => ({ weather, news }));
 }
 
 export function fetchDashboardWithChaining(city: string) {
@@ -68,18 +53,16 @@ export function fetchDashboardWithChaining(city: string) {
         weather,
         news,
       })),
-    )
-    .catch((error) => {
-      console.error("Failed to fetch chained dashboard data:", error);
-      throw error;
-    });
+    );
 }
 
 export function fetchFastestRequest(city: string) {
-  return Promise.race([
-    fetchWeather(city).then(() => "Weather finished first"),
-    fetchNews().then(() => "News finished first"),
-  ]);
+  return fetchWeather(city).then(() =>
+    Promise.race([
+      Promise.resolve("Weather finished first"),
+      fetchNews().then(() => "News finished first"),
+    ]),
+  );
 }
 
 fetchDashboardWithPromiseAll(city)
@@ -101,11 +84,11 @@ fetchDashboardWithPromiseAll(city)
     console.log("  ]");
     console.log("}");
   })
-  .catch((err) => console.error("Dashboard error (Promise.all):", err));
+  .catch((err) => displayError("Promise.all application", err));
 
 fetchDashboardWithChaining(city)
   .then((dashboard) => {
-    console.log("Fetching weather and news...");
+ 
     console.log("=== Chaining Dashboard ===");
     console.log("{");
     console.log("  == WEATHER ==");
@@ -122,7 +105,7 @@ fetchDashboardWithChaining(city)
     console.log("  ]");
     console.log("}");
   })
-  .catch((err) => console.error("Dashboard error (Chaining):", err));
+  .catch((err) => displayError("Chaining application", err));
 
 fetchFastestRequest(city)
   .then((winner) => {
@@ -130,4 +113,4 @@ fetchFastestRequest(city)
     console.log("=== Fastest Request ===");
     console.log(winner);
   })
-  .catch((err) => console.error("Fastest request error:", err));
+  .catch((err) => displayError("Fastest Request", err));

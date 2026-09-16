@@ -1,16 +1,23 @@
 import "dotenv/config";
 import https from "node:https";
 import promptSync from "prompt-sync";
+import { displayError, WeatherRequestError } from "./utils/displayError.js";
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_URL = "https://dummyjson.com/posts?limit=3";
 const prompt = promptSync();
-const city = prompt("Enter city name: ")?.trim() || "Polokwane";
+const city = prompt("Enter city name: ").trim();
 
 function requestJson<T>(url: string, callback: (error: Error | null, data?: T) => void): void {
   https
     .get(url, (response) => {
       const chunks: Buffer[] = [];
+
+      if (response.statusCode !== undefined && response.statusCode >= 400) {
+        response.resume();
+        callback(new Error(`Request failed with HTTP ${response.statusCode}`));
+        return;
+      }
 
       response.on("data", (chunk) => {
         chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -30,20 +37,12 @@ function requestJson<T>(url: string, callback: (error: Error | null, data?: T) =
     });
 }
 
-function createFallbackWeather(city: string) {
-  return {
-    city,
-    temperature: NaN,
-    condition: "Weather unavailable",
-  };
-}
-
 export function fetchWeatherWithCallback(
   city: string,
   callback: (error: Error | null, weather?: { city: string; temperature: number; condition: string }) => void,
 ): void {
   if (!WEATHER_API_KEY) {
-    callback(new Error("Missing WEATHER_API_KEY in .env"));
+    callback(new WeatherRequestError("Missing WEATHER_API_KEY in .env"));
     return;
   }
 
@@ -53,8 +52,7 @@ export function fetchWeatherWithCallback(
     WEATHER_URL,
     (error, data) => {
       if (error || !data) {
-        console.warn(`Weather API unavailable for ${city}; using fallback weather.`, error);
-        callback(null, createFallbackWeather(city));
+        callback(new WeatherRequestError(`Weather request failed for "${city}"`));
         return;
       }
 
@@ -113,11 +111,11 @@ export function fetchDashboardWithCallback(
 
 fetchDashboardWithCallback(city, (error, dashboard) => {
   if (error || !dashboard) {
-    console.error("Callback Dashboard error:", error ?? new Error("Unknown error"));
+    displayError("Callback Dashboard", error ?? new Error("Unknown error"));
     return;
   }
 
-  console.log("Fetching weather and news...");
+
   console.log("=== Callback Dashboard ===");
   console.log("{");
   console.log("  == WEATHER ==");

@@ -1,18 +1,12 @@
 import "dotenv/config";
 import promptSync from "prompt-sync";
+import { displayError, WeatherRequestError } from "./utils/displayError.js";
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_URL = "https://dummyjson.com/posts?limit=3";
-const prompt = promptSync();
-const city = prompt("Enter city name: ")?.trim() || "Polokwane";
 
-function createFallbackWeather(city: string) {
-  return {
-    city,
-    temperature: NaN,
-    condition: "Weather unavailable",
-  };
-}
+const prompt = promptSync();
+const city = prompt("Enter city name: ").trim();
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -21,17 +15,16 @@ function delay(ms: number): Promise<void> {
 async function getWeather(city: string) {
   await delay(700);
 
-  if (!WEATHER_API_KEY) {
-    throw new Error("Missing WEATHER_API_KEY in .env");
-  }
-
-  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`;
-
   try {
+    if (!WEATHER_API_KEY) {
+      throw new WeatherRequestError("Missing WEATHER_API_KEY in .env");
+    }
+
+    const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`;
     const response = await fetch(WEATHER_URL);
 
     if (!response.ok) {
-      throw new Error(`Weather API request failed with status ${response.status}`);
+      throw new WeatherRequestError(`Weather request failed for "${city}" (HTTP ${response.status})`);
     }
 
     const data = (await response.json()) as {
@@ -45,8 +38,9 @@ async function getWeather(city: string) {
       condition: data.weather?.[0]?.description ?? "Unknown",
     };
   } catch (error) {
-    console.warn(`Weather API unavailable for ${city}; using fallback weather.`, error);
-    return createFallbackWeather(city);
+    throw error instanceof WeatherRequestError
+      ? error
+      : new WeatherRequestError(`Weather request failed for "${city}"`);
   }
 }
 
@@ -72,11 +66,11 @@ export async function fetchDashboardData(city: string) {
   try {
     console.log(`Fetching weather for ${city}...`);
 
-    const [weather, news] = await Promise.all([getWeather(city), getNews()]);
+    const weather = await getWeather(city);
+    const news = await getNews();
 
     return { weather, news };
   } catch (error) {
-    console.error("Async/Await Dashboard error:", error);
     throw error;
   }
 }
@@ -84,7 +78,7 @@ export async function fetchDashboardData(city: string) {
 void (async () => {
   try {
     const dashboard = await fetchDashboardData(city);
-    console.log("Fetching weather and news...");
+   
     console.log("=== Async/Await Dashboard ===");
     console.log("{");
     console.log("  == WEATHER ==");
@@ -101,6 +95,6 @@ void (async () => {
     console.log("  ]");
     console.log("}");
   } catch (error) {
-    console.error("Async/Await dashboard failed:", error);
+    displayError("Async/Await application", error);
   }
 })();
