@@ -1,16 +1,11 @@
 import "dotenv/config";
 import https from "node:https";
-import type { NewsItem } from "./types/news.js";
-import type { DashboardData, WeatherData } from "./types/weather.js";
+import promptSync from "prompt-sync";
 
-const WEATHER_URL = "https://api.openweathermap.org/data/2.5/weather?lat={lat}&lon={lon}&appid={WEATHER_API_KEY}";
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
-
-if (!NEWS_API_KEY) {
-  throw new Error("Missing NEWS_API_KEY in .env");
-}
-
-const NEWS_URL = `https://newsapi.org/v2/top-headlines?country=za&pageSize=3&apiKey=${NEWS_API_KEY}`;
+const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
+const NEWS_URL = "https://dummyjson.com/posts?limit=3";
+const prompt = promptSync();
+const city = prompt("Enter city name: ")?.trim() || "Polokwane";
 
 function requestJson<T>(url: string, callback: (error: Error | null, data?: T) => void): void {
   https
@@ -35,41 +30,38 @@ function requestJson<T>(url: string, callback: (error: Error | null, data?: T) =
     });
 }
 
-function getWeatherCondition(code?: number): string {
-  switch (code) {
-    case 0:
-      return "Clear";
-    case 1:
-    case 2:
-    case 3:
-      return "Partly cloudy";
-    case 45:
-    case 48:
-      return "Foggy";
-    case 51:
-    case 53:
-    case 55:
-      return "Rainy";
-    default:
-      return "Mild";
-  }
+function createFallbackWeather(city: string) {
+  return {
+    city,
+    temperature: NaN,
+    condition: "Weather unavailable",
+  };
 }
 
 export function fetchWeatherWithCallback(
-  callback: (error: Error | null, weather?: WeatherData) => void,
+  city: string,
+  callback: (error: Error | null, weather?: { city: string; temperature: number; condition: string }) => void,
 ): void {
-  requestJson<{ current?: { temperature_2m?: number; weather_code?: number } }>(
+  if (!WEATHER_API_KEY) {
+    callback(new Error("Missing WEATHER_API_KEY in .env"));
+    return;
+  }
+
+  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`;
+
+  requestJson<{ main?: { temp?: number }; weather?: Array<{ description?: string }> }>(
     WEATHER_URL,
     (error, data) => {
       if (error || !data) {
-        callback(error ?? new Error("Weather request returned no data"));
+        console.warn(`Weather API unavailable for ${city}; using fallback weather.`, error);
+        callback(null, createFallbackWeather(city));
         return;
       }
 
-      const weather: WeatherData = {
-        city: "Polokwane",
-        temperature: data.current?.temperature_2m ?? 0,
-        condition: getWeatherCondition(data.current?.weather_code),
+      const weather = {
+        city,
+        temperature: data.main?.temp ?? 0,
+        condition: data.weather?.[0]?.description ?? "Unknown",
       };
 
       callback(null, weather);
@@ -78,33 +70,31 @@ export function fetchWeatherWithCallback(
 }
 
 export function fetchNewsWithCallback(
-  callback: (error: Error | null, news?: NewsItem[]) => void,
+  callback: (error: Error | null, news?: Array<{ source: string; title: string; url?: string }>) => void,
 ): void {
-  requestJson<{ articles?: Array<{ title?: string; url?: string; source?: { name?: string } }> }>(
-    NEWS_URL,
-    (error, data) => {
-      if (error || !data) {
-        callback(error ?? new Error("News request returned no data"));
-        return;
-      }
+  requestJson<{ posts?: Array<{ id?: number; title?: string }> }>(NEWS_URL, (error, data) => {
+    if (error || !data) {
+      callback(error ?? new Error("News request returned no data"));
+      return;
+    }
 
-      const news = (data.articles ?? [])
-        .slice(0, 3)
-        .map((item) => ({
-          source: item.source?.name ?? "News API",
-          title: item.title ?? "Untitled story",
-          ...(item.url ? { url: item.url } : {}),
-        }));
+    const news = (data.posts ?? [])
+      .slice(0, 3)
+      .map((item) => ({
+        source: "DummyJSON",
+        title: item.title ?? "Untitled post",
+        ...(item.id !== undefined ? { url: `https://dummyjson.com/posts/${item.id}` } : {}),
+      }));
 
-      callback(null, news);
-    },
-  );
+    callback(null, news);
+  });
 }
 
 export function fetchDashboardWithCallback(
-  callback: (error: Error | null, dashboard?: DashboardData) => void,
+  city: string,
+  callback: (error: Error | null, dashboard?: { weather: { city: string; temperature: number; condition: string }; news: Array<{ source: string; title: string; url?: string }> }) => void,
 ): void {
-  fetchWeatherWithCallback((weatherError, weather) => {
+  fetchWeatherWithCallback(city, (weatherError, weather) => {
     if (weatherError || !weather) {
       callback(weatherError ?? new Error("Weather fetch failed"));
       return;
@@ -120,3 +110,27 @@ export function fetchDashboardWithCallback(
     });
   });
 }
+
+fetchDashboardWithCallback(city, (error, dashboard) => {
+  if (error || !dashboard) {
+    console.error("Callback Dashboard error:", error ?? new Error("Unknown error"));
+    return;
+  }
+
+  console.log("Fetching weather and news...");
+  console.log("=== Callback Dashboard ===");
+  console.log("{");
+  console.log("  == WEATHER ==");
+  console.log("    city:", JSON.stringify(dashboard.weather.city));
+  console.log("    temperature:", dashboard.weather.temperature);
+  console.log("    condition:", JSON.stringify(dashboard.weather.condition));
+  console.log("  news: [");
+  dashboard.news.forEach((item) => {
+    console.log("    {");
+    console.log("      source:", JSON.stringify(item.source));
+    console.log("      title:", JSON.stringify(item.title));
+    console.log("    },");
+  });
+  console.log("  ]");
+  console.log("}");
+});

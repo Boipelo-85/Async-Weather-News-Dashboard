@@ -1,64 +1,67 @@
 import "dotenv/config";
-import type { NewsItem } from "./types/news.js";
-import type { DashboardData, WeatherData } from "./types/weather.js";
+import promptSync from "prompt-sync";
 
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
-const NEWS_API_KEY = process.env.NEWS_API_KEY;
+const NEWS_URL = "https://dummyjson.com/posts?limit=3";
+const prompt = promptSync();
+const city = prompt("Enter city name: ")?.trim() || "Polokwane";
 
-if (!WEATHER_API_KEY) {
-  throw new Error("Missing WEATHER_API_KEY in .env");
+function createFallbackWeather(city: string) {
+  return {
+    city,
+    temperature: NaN,
+    condition: "Weather unavailable",
+  };
 }
-if (!NEWS_API_KEY) {
-  throw new Error("Missing NEWS_API_KEY in .env");
-}
-
-const NEWS_URL = `https://newsapi.org/v2/top-headlines?country=za&pageSize=3&apiKey=${NEWS_API_KEY}`;
 
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
-
   if (!response.ok) {
     throw new Error(`Request failed with status ${response.status}`);
   }
-
   return (await response.json()) as T;
 }
 
-// Weather fetcher with city support
-export function fetchWeather(city: string): Promise<WeatherData> {
-  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${WEATHER_API_KEY}&units=metric`;
+export function fetchWeather(city: string) {
+  if (!WEATHER_API_KEY) {
+    console.warn(`Weather API unavailable for ${city}; using fallback weather.`);
+    return Promise.resolve(createFallbackWeather(city));
+  }
 
-  return fetchJson<{ main?: { temp?: number }; weather?: Array<{ description?: string }> }>(WEATHER_URL).then(
-    (data) => ({
+  const WEATHER_URL = `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${WEATHER_API_KEY}&units=metric`;
+
+  return fetchJson<{ main?: { temp?: number }; weather?: Array<{ description?: string }> }>(WEATHER_URL)
+    .then((data) => ({
       city,
       temperature: data.main?.temp ?? 0,
       condition: data.weather?.[0]?.description ?? "Unknown",
-    }),
+    }))
+    .catch((error) => {
+      console.warn(`Weather API unavailable for ${city}; using fallback weather.`, error);
+      return createFallbackWeather(city);
+    });
+}
+
+export function fetchNews() {
+  return fetchJson<{ posts?: Array<{ id?: number; title?: string; body?: string }> }>(NEWS_URL).then((data) =>
+    (data.posts ?? []).slice(0, 3).map((item) => ({
+      source: "DummyJSON",
+      title: item.title ?? "Untitled post",
+      ...(item.id !== undefined ? { url: `https://dummyjson.com/posts/${item.id}` } : {}),
+    })),
   );
 }
 
-// News fetcher
-export function fetchNews(): Promise<NewsItem[]> {
-  return fetchJson<{ articles?: Array<{ title?: string; url?: string; source?: { name?: string } }> }>(NEWS_URL).then(
-    (data) =>
-      (data.articles ?? []).slice(0, 3).map((item) => ({
-        source: item.source?.name ?? "News API",
-        title: item.title ?? "Untitled story",
-        ...(item.url ? { url: item.url } : {}),
-      })),
-  );
+export function fetchDashboardWithPromiseAll(city: string) {
+  return Promise.all([fetchWeather(city), fetchNews()])
+    .then(([weather, news]) => ({ weather, news }))
+    .catch((error) => {
+      console.error("Failed to fetch dashboard data:", error);
+      throw error;
+    });
 }
 
-// Dashboard with Promise.all
-export function fetchDashboardWithPromiseAll(city: string): Promise<DashboardData> {
-  return Promise.all([fetchWeather(city), fetchNews()]).then(([weather, news]) => ({
-    weather,
-    news,
-  }));
-}
-
-// Dashboard with chaining
-export function fetchDashboardWithChaining(city: string): Promise<DashboardData> {
+export function fetchDashboardWithChaining(city: string) {
   return fetchWeather(city)
     .then((weather) =>
       fetchNews().then((news) => ({
@@ -72,10 +75,59 @@ export function fetchDashboardWithChaining(city: string): Promise<DashboardData>
     });
 }
 
-// Fastest request demo
-export function fetchFastestRequest(city: string): Promise<string> {
+export function fetchFastestRequest(city: string) {
   return Promise.race([
     fetchWeather(city).then(() => "Weather finished first"),
     fetchNews().then(() => "News finished first"),
   ]);
 }
+
+fetchDashboardWithPromiseAll(city)
+  .then((dashboard) => {
+    console.log("Fetching weather and news...");
+    console.log("=== Promise.all Dashboard ===");
+    console.log("{");
+    console.log("  ==WEATHER==");
+    console.log("    city:", JSON.stringify(dashboard.weather.city));
+    console.log("    temperature:", dashboard.weather.temperature);
+    console.log("    condition:", JSON.stringify(dashboard.weather.condition));
+    console.log("  news: [");
+    dashboard.news.forEach((item) => {
+      console.log("    {");
+      console.log("      source:", JSON.stringify(item.source));
+      console.log("      title:", JSON.stringify(item.title));
+      console.log("    },");
+    });
+    console.log("  ]");
+    console.log("}");
+  })
+  .catch((err) => console.error("Dashboard error (Promise.all):", err));
+
+fetchDashboardWithChaining(city)
+  .then((dashboard) => {
+    console.log("Fetching weather and news...");
+    console.log("=== Chaining Dashboard ===");
+    console.log("{");
+    console.log("  == WEATHER ==");
+    console.log("city:", JSON.stringify(dashboard.weather.city));
+    console.log("temperature:", dashboard.weather.temperature);
+    console.log("    condition:", JSON.stringify(dashboard.weather.condition));
+    console.log("  news: [");
+    dashboard.news.forEach((item) => {
+      console.log("    {");
+      console.log("      source:", JSON.stringify(item.source));
+      console.log("      title:", JSON.stringify(item.title));
+      console.log("    },");
+    });
+    console.log("  ]");
+    console.log("}");
+  })
+  .catch((err) => console.error("Dashboard error (Chaining):", err));
+
+fetchFastestRequest(city)
+  .then((winner) => {
+    console.log("Fetching weather and news...");
+    console.log("=== Fastest Request ===");
+    console.log(winner);
+  })
+  .catch((err) => console.error("Fastest request error:", err));

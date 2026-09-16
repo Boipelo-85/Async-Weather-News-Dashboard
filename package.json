@@ -3,12 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
- "scripts": {
-  "callback": "tsx src/callbackVersion.ts",
-  "promise": "tsx src/promiseVersion.ts",
-  "async": "tsx src/asyncAwaitVersion.ts",
-  "dev": "nodemon src/asyncAwaitVersion.ts"
-},
+  "scripts": {
+    "callback": "tsx src/callbackVersion.ts",
+    "promise": "tsx src/promiseVersion.ts",
+    "async": "tsx src/asyncAwaitVersion.ts",
+    "dev": "nodemon src/asyncAwaitVersion.ts"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Boipelo-85/Async-Weather-News-Dashboard.git"
@@ -24,10 +24,12 @@
   "dependencies": {
     "@types/node": "^26.5.1",
     "dotenv": "^17.4.2",
+    "prompt-sync": "^4.2.0",
     "tsx": "^4.23.13",
     "typescript": "^7.0.2"
   },
   "devDependencies": {
+    "@types/prompt-sync": "^4.2.3",
     "nodemon": "^3.1.14"
   }
 }

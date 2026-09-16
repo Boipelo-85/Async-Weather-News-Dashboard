@@ -8,5 +8,4 @@ async function main(): Promise<void> {
     console.error("Failed to load dashboard data:", error);
   }
 }
-
 void main();
