@@ -5,13 +5,15 @@ import { displayError, WeatherRequestError } from "./utils/displayError.js";
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_URL = "https://dummyjson.com/posts?limit=3";
 
+//creating a prompt for a user location
 const prompt = promptSync();
 const city = prompt("Enter city name: ").trim();
+ 
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
+//Get user location weather section
 async function getWeather(city: string) {
   await delay(700);
 
@@ -31,7 +33,6 @@ async function getWeather(city: string) {
       main?: { temp?: number };
       weather?: Array<{ description?: string }>;
     };
-
     return {
       city,
       temperature: data.main?.temp ?? 0,
@@ -43,7 +44,7 @@ async function getWeather(city: string) {
       : new WeatherRequestError(`Weather request failed for "${city}"`);
   }
 }
-
+//Get news from the DummyJSON post section
 async function getNews() {
   const response = await fetch(NEWS_URL);
 
@@ -75,6 +76,7 @@ export async function fetchDashboardData(city: string) {
   }
 }
 
+//Display the final data from the api and news posts
 void (async () => {
   try {
     const dashboard = await fetchDashboardData(city);

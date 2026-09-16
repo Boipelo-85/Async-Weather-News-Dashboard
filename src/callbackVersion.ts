@@ -3,8 +3,11 @@ import https from "node:https";
 import promptSync from "prompt-sync";
 import { displayError, WeatherRequestError } from "./utils/displayError.js";
 
+//API URL AND DummyJSON posts
 const WEATHER_API_KEY = process.env.WEATHER_API_KEY;
 const NEWS_URL = "https://dummyjson.com/posts?limit=3";
+
+//creating a prompt for a user location
 const prompt = promptSync();
 const city = prompt("Enter city name: ").trim();
 
@@ -37,6 +40,7 @@ function requestJson<T>(url: string, callback: (error: Error | null, data?: T) =
     });
 }
 
+//Fetch weather  for the specific location section
 export function fetchWeatherWithCallback(
   city: string,
   callback: (error: Error | null, weather?: { city: string; temperature: number; condition: string }) => void,
@@ -67,6 +71,7 @@ export function fetchWeatherWithCallback(
   );
 }
 
+//Fetch the updated news from the DummyJSON posts
 export function fetchNewsWithCallback(
   callback: (error: Error | null, news?: Array<{ source: string; title: string; url?: string }>) => void,
 ): void {
@@ -109,13 +114,14 @@ export function fetchDashboardWithCallback(
   });
 }
 
+//Display the final data from the api and news posts
 fetchDashboardWithCallback(city, (error, dashboard) => {
   if (error || !dashboard) {
     displayError("Callback Dashboard", error ?? new Error("Unknown error"));
     return;
   }
 
-
+  
   console.log("=== Callback Dashboard ===");
   console.log("{");
   console.log("  == WEATHER ==");

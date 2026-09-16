@@ -65,6 +65,7 @@ export function fetchFastestRequest(city: string) {
   );
 }
 
+//Display the final data from the api and news posts
 fetchDashboardWithPromiseAll(city)
   .then((dashboard) => {
     console.log("Fetching weather and news...");
@@ -85,6 +86,7 @@ fetchDashboardWithPromiseAll(city)
     console.log("}");
   })
   .catch((err) => displayError("Promise.all application", err));
+
 
 fetchDashboardWithChaining(city)
   .then((dashboard) => {
